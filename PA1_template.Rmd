@@ -1,0 +1,246 @@
+---
+title: "Reproducible Research: Course Project 1"
+author: "Steve Orosz"
+date: "August 19, 2018"
+output: html_document
+---
+
+```{r load data,  echo=TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#Libraries
+
+library(lubridate)
+library(dplyr)
+
+#Set working directory
+
+setwd("C:/Users/smoro/OneDrive/Desktop/Data Science/John Hopkins University/Reproducible Research/Project_One")
+
+#getwd()
+
+#Get file
+
+Mydata <- read.csv("C:/Users/smoro/OneDrive/Desktop/Data Science/John Hopkins University/Reproducible Research/Project_One/activity.csv", header = TRUE)
+
+head(Mydata)
+
+#View(Mydata)
+
+#Create weekday fields
+MydataComplete <- Mydata %>% mutate (weekday = weekdays(as.Date(Mydata$date))) %>% mutate(weekdayNum = wday(Mydata$date))
+
+#View(MydataComplete)
+
+#Create data set without misssing values and with missing values
+
+WithOut <-  na.exclude(MydataComplete)
+With <- MydataComplete
+
+#View(WithOut)
+#View(With)
+
+
+```
+
+
+```{r Number of Steps per Day , echo=TRUE}
+
+#Count total steps per day
+ts <- tapply(WithOut$steps, WithOut$date , sum)
+
+TotalStepDay <- data.frame(date = names(ts), sum = ts)
+
+#View(TotalStepDay)
+
+
+```
+
+```{r Histogram of total steps per day , echo=TRUE}
+
+#Histogram of total steps per day
+hist(TotalStepDay$sum)
+
+```
+
+##What is mean and median total number of steps taken per day?
+```{r Mean and median number of Steps per Day, echo=TRUE}
+
+#Mean total steps per day
+m1 <- tapply(WithOut$steps, WithOut$date , mean)
+
+MeanStepDay <- data.frame(date = names(m1), DateMean = m1)
+
+#View(MeanStepDay)
+
+MeanStepDay
+
+#View(MeanStepDay) Removed 0 steps to calculate median
+preMedianStepDay <- WithOut %>% filter(WithOut$steps > 0)
+
+
+#Median total steps per day
+md <- tapply(preMedianStepDay$steps, preMedianStepDay$date , median)
+
+MedianStepDay <- data.frame(date = names(md), DateMedian = md)
+
+MedianStepDay
+
+#View(MedianStepDay)
+
+```
+##What is the average daily activity pattern?
+###Saturday has the highest step average than the rest of the week
+```{r Average daily activity pattern, echo=TRUE}
+
+
+FiveInterval <- WithOut  %>% mutate(FiveInterval = ((steps / interval) * 1.0) * 5)
+
+m2 <- tapply(FiveInterval$steps, FiveInterval$weekdayNum,  mean)
+
+MeanWeekDays <- data.frame(day = names(m2), mean = m2)
+
+#Display time series of average steps taken over week
+
+plot(  MeanWeekDays$mean, MeanWeekDays$day, type = "l", xlab = "Average Steps per Day", ylab = "Day of Week")
+
+
+```
+##Missing values Section
+#What is the total number of rows with missing values?
+```{r Missing Values, echo=TRUE}
+
+sum(is.na(With$steps))
+
+```
+#Calculate mean and median per interval of steps. This will be used for days with NA for steps
+#Date could not be used for NA data since no step data for them.
+
+```{r Fill in missing Values with Mean, echo=TRUE}
+
+#produce mean average
+m3 <- tapply(WithOut$steps, WithOut$interval , mean)
+
+MeanStepInterval <- data.frame(interval = names(m3), IntervalMean = m3)
+
+#produce median average
+
+m4 <- tapply(WithOut$steps, WithOut$interval , median) 
+
+MedianStepInterval <- data.frame(interval = names(m4), IntervalMedian = m4)
+
+MedianStepInterval
+
+#Calculate Final Mean average for each day
+CombinedFile <- merge(With, MeanStepInterval, by = "interval")
+CombinedFile <- merge(CombinedFile, MeanStepDay, by = "date")
+CombinedFile <- mutate(CombinedFile, FinalMean = ifelse(is.na(CombinedFile$DateMean), 
+            CombinedFile$IntervalMean, CombinedFile$DateMean))
+
+#Calculate Final Median average for each day
+CombinedFile <- merge(CombinedFile, MedianStepInterval, by = "interval")
+CombinedFile <- merge(CombinedFile, MedianStepDay, by = "date")
+CombinedFile <- mutate(CombinedFile, FinalMedian = ifelse(is.na(CombinedFile$DateMedian), 
+            CombinedFile$IntervalMedian, CombinedFile$DateMedian))
+
+#View(CombinedFile)
+
+
+```
+
+
+```{r Number of Steps per Day for all data , echo=TRUE}
+
+#Count total steps per day
+ts2 <- tapply(With$steps, With$date , sum)
+
+TotalStepDayAll <- data.frame(date = names(ts2), sum = ts2)
+
+TotalStepDayAll<- mutate(TotalStepDayAll, FinalSum = ifelse(is.na(TotalStepDayAll$sum), 
+            0, TotalStepDayAll$sum))
+
+
+
+#View(TotalStepDayAll)
+
+
+
+```
+##The frequency of total steps per day with NA data that was imputed shows more frequency counts in 0 - 5000 step range than before. The rest of buckets are identical.
+
+```{r Histogram of total steps per day for all data , echo=TRUE}
+
+#Histogram of total steps per day
+hist(TotalStepDayAll$FinalSum, main = "Histogram of total steps per day for all data")
+
+
+hist(TotalStepDay$sum, main = "Histogram of total steps per day for only complete data")
+
+```
+
+```{r Compare weekdays to weekends , echo=TRUE}
+
+#CombinedFile
+
+#Create weekend subset 
+SatSun <- c("Saturday", "Sunday")
+weekend <- subset(CombinedFile, weekday %in% (SatSun))
+
+#Create weekday subset
+Wkdays <- c("Monday","Tuesday","Wednesday","Thursday","Friday")
+weekdays <- subset(CombinedFile, weekday %in% (Wkdays))
+
+
+
+```
+
+```{r Five minute interval for all data, echo=TRUE}
+
+
+#Get the 5 minute interval mean for NA rows
+naSet <- CombinedFile[is.na(CombinedFile$steps),] %>% select(steps,date,interval, weekday, weekdayNum, FinalMean)
+#naFiveInterval <- subset(naSet, interval == 5)
+
+#Calculate five minute interal for NA file
+naFiveInterval <- naSet  %>% mutate(FiveInterval = ((FinalMean / interval) * 1.0) * 5) %>% select(steps,date,interval, weekday, weekdayNum, FiveInterval)
+
+#Combine the two five interval files into one
+CombinedFiveInterval <- rbind(FiveInterval, naFiveInterval)
+
+CombinedFiveIntervalFinal  <- na.exclude(CombinedFiveInterval) 
+CombinedFiveIntervalFinal <- subset(CombinedFiveIntervalFinal, interval > 0 )
+
+
+#Create weekday subset
+Wkdays <- c("Monday","Tuesday","Wednesday","Thursday","Friday")
+weekdays <- subset(CombinedFiveIntervalFinal, weekday %in% (Wkdays))
+
+w1 <- tapply(weekdays$steps, weekdays$weekdayNum,  mean)
+
+weekdayAverage <- data.frame(day = names(w1), mean = w1)
+
+#View(weekdayAverage)
+
+#Create weekend subset 
+SatSun <- c("Saturday", "Sunday")
+weekend <- subset(CombinedFiveIntervalFinal, weekday %in% (SatSun))
+
+w2 <- tapply(weekend$steps, weekend$weekdayNum,  mean)
+
+weekendAverage <- data.frame(day = names(w2), mean = w2)
+
+#View(weekendAverage)
+
+
+
+
+#Display time series of average steps for week days and then weekend days
+par(mfrow=c(1,2))
+
+plot(weekdayAverage$mean, weekdayAverage$day, type = "l", xlab = "Average Steps per Day", ylab = "Day of Week", main = "Weekday average steps all data")
+
+
+plot(weekendAverage$mean, weekendAverage$day, type = "l", xlab = "Average Steps per Day", ylab = "Day of Week", main = "Weekend average steps all data")
+
+
+```
